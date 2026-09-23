@@ -10,6 +10,7 @@ import { createTextInput, textToParameters } from "./src/text.js";
 const canvas = document.querySelector("#canvas");
 const textField = document.querySelector("#text-input");
 const seedReadout = document.querySelector("#seed-readout");
+const resetButton = document.querySelector("#reset-button");
 
 if (!(canvas instanceof HTMLCanvasElement)) {
   throw new Error("Canvas element not found.");
@@ -17,6 +18,10 @@ if (!(canvas instanceof HTMLCanvasElement)) {
 
 if (!(textField instanceof HTMLInputElement)) {
   throw new Error("Text input element not found.");
+}
+
+if (!(resetButton instanceof HTMLButtonElement)) {
+  throw new Error("Reset button not found.");
 }
 
 const ctx = canvas.getContext("2d", {
@@ -27,6 +32,10 @@ const ctx = canvas.getContext("2d", {
 if (!ctx) {
   throw new Error("2D canvas context is not available.");
 }
+
+const prefersReducedMotion = window.matchMedia(
+  "(prefers-reduced-motion: reduce)",
+).matches;
 
 const state = {
   width: 0,
@@ -39,7 +48,12 @@ const state = {
   centerY: 0,
   minDimension: 0,
   parameters: DEFAULT_PARAMETERS,
-  geometry: createGeometry(DEFAULT_PARAMETERS.seed, DEFAULT_PARAMETERS),
+  geometry: createGeometry(
+    DEFAULT_PARAMETERS.seed,
+    DEFAULT_PARAMETERS,
+  ),
+  renderDetail: 1,
+  frameEstimate: 16,
 };
 
 const COLORS = {
@@ -75,9 +89,21 @@ function resizeCanvas() {
 
 function applyTextParameters(parameters) {
   state.parameters = parameters;
-  state.geometry = createGeometry(parameters.seed, parameters);
+  state.geometry = createGeometry(
+    parameters.seed,
+    parameters,
+  );
   seedReadout.textContent =
     "SEED " + parameters.seed.toString(16).padStart(8, "0");
+}
+
+function resetExperience() {
+  textField.value = "";
+  pointerInput.forces.length = 0;
+  state.time = 0;
+  state.previousTime = performance.now();
+  applyTextParameters(textToParameters(""));
+  canvas.focus({ preventScroll: true });
 }
 
 function clearCanvas() {
@@ -86,6 +112,10 @@ function clearCanvas() {
 }
 
 function drawReferenceGrid() {
+  if (state.renderDetail < 0.8) {
+    return;
+  }
+
   const radius = state.minDimension * 0.49;
 
   ctx.save();
@@ -95,7 +125,13 @@ function drawReferenceGrid() {
 
   for (let ring = 1; ring <= 4; ring += 1) {
     ctx.beginPath();
-    ctx.arc(0, 0, radius * (ring / 4), 0, Math.PI * 2);
+    ctx.arc(
+      0,
+      0,
+      radius * (ring / 4),
+      0,
+      Math.PI * 2,
+    );
     ctx.stroke();
   }
 
@@ -125,10 +161,15 @@ function drawGeometry() {
 
     ctx.beginPath();
     ctx.strokeStyle = color;
-    ctx.globalAlpha = curve.index % 5 === 0 ? 0.62 : 0.42;
+    ctx.globalAlpha =
+      curve.index % 5 === 0 ? 0.62 : 0.42;
     ctx.lineWidth = curve.weight;
 
-    for (let index = 0; index < curve.points.length; index += 1) {
+    for (
+      let index = 0;
+      index < curve.points.length;
+      index += 1
+    ) {
       const point = curve.points[index];
 
       if (index === 0) {
@@ -140,14 +181,27 @@ function drawGeometry() {
 
     ctx.stroke();
 
-    if (curve.index % 5 === 0) {
+    if (
+      state.renderDetail >= 0.8 &&
+      curve.index % 5 === 0
+    ) {
       ctx.globalAlpha = 0.75;
       ctx.fillStyle = color;
 
-      for (let index = 0; index < curve.points.length; index += 22) {
+      for (
+        let index = 0;
+        index < curve.points.length;
+        index += 22
+      ) {
         const point = curve.points[index];
         ctx.beginPath();
-        ctx.arc(point.x, point.y, 1.65, 0, Math.PI * 2);
+        ctx.arc(
+          point.x,
+          point.y,
+          1.65,
+          0,
+          Math.PI * 2,
+        );
         ctx.fill();
       }
     }
@@ -168,16 +222,35 @@ function drawActiveForces() {
   ctx.lineWidth = 1;
 
   for (const force of forces) {
-    const radius = force.radius * (0.42 + force.life * 0.58);
+    const radius =
+      force.radius * (0.42 + force.life * 0.58);
 
-    ctx.globalAlpha = Math.min(0.34, force.life * 0.4);
+    ctx.globalAlpha = Math.min(
+      0.34,
+      force.life * 0.4,
+    );
     ctx.beginPath();
-    ctx.arc(force.x, force.y, radius, 0, Math.PI * 2);
+    ctx.arc(
+      force.x,
+      force.y,
+      radius,
+      0,
+      Math.PI * 2,
+    );
     ctx.stroke();
 
-    ctx.globalAlpha = Math.min(0.2, force.life * 0.24);
+    ctx.globalAlpha = Math.min(
+      0.2,
+      force.life * 0.24,
+    );
     ctx.beginPath();
-    ctx.arc(force.x, force.y, radius * 0.28, 0, Math.PI * 2);
+    ctx.arc(
+      force.x,
+      force.y,
+      radius * 0.28,
+      0,
+      Math.PI * 2,
+    );
     ctx.stroke();
   }
 
@@ -185,8 +258,13 @@ function drawActiveForces() {
 }
 
 function update(deltaSeconds) {
+  const motionScale = prefersReducedMotion ? 0.3 : 1;
+
   state.time +=
-    deltaSeconds * state.parameters.speed;
+    deltaSeconds *
+    state.parameters.speed *
+    motionScale;
+
   pointerInput.update(deltaSeconds);
 
   updateGeometry(
@@ -216,7 +294,21 @@ function frame(now) {
   );
 
   state.previousTime = now;
+
+  if (document.hidden) {
+    window.requestAnimationFrame(frame);
+    return;
+  }
+
   state.deltaTime = elapsedMs / 1000;
+  state.frameEstimate =
+    state.frameEstimate * 0.94 + elapsedMs * 0.06;
+
+  if (state.frameEstimate > 24) {
+    state.renderDetail = 0.65;
+  } else if (state.frameEstimate < 18) {
+    state.renderDetail = 1;
+  }
 
   update(state.deltaTime);
   render();
@@ -229,10 +321,20 @@ const textInput = createTextInput({
   onChange: applyTextParameters,
 });
 
-applyTextParameters(textToParameters(textField.value));
+resetButton.addEventListener("click", resetExperience);
 
-window.addEventListener("resize", resizeCanvas, {
-  passive: true,
+applyTextParameters(
+  textToParameters(textField.value),
+);
+
+window.addEventListener(
+  "resize",
+  resizeCanvas,
+  { passive: true },
+);
+
+window.addEventListener("visibilitychange", () => {
+  state.previousTime = performance.now();
 });
 
 resizeCanvas();
@@ -241,4 +343,8 @@ window.requestAnimationFrame(frame);
 window.addEventListener("pagehide", () => {
   textInput.dispose();
   pointerInput.dispose();
+  resetButton.removeEventListener(
+    "click",
+    resetExperience,
+  );
 });
