@@ -11,19 +11,38 @@ The project is intentionally client-only: no backend, database, authentication, 
 
 ## Current status
 
-**Completed: Phase 0 + Phase 1**
+**Completed: Phase 0 → Phase 4**
 
-The current foundation includes:
+The project currently includes:
 
 - fullscreen responsive canvas;
 - device-pixel-ratio aware rendering;
 - `requestAnimationFrame` loop;
 - separated update/render stages;
 - delta-time handling;
-- light canvas foundation suitable for the eventual projector-friendly visual direction;
-- a small animated rendering diagnostic used as the Phase 1 checkpoint.
+- projector-friendly light visual language;
+- procedural generative geometry;
+- animated vector-field-style transformations;
+- deterministic seeded geometry generation;
+- click perturbations;
+- drag-based forces whose intensity responds to pointer velocity;
+- touch-compatible pointer events;
+- decaying force fields;
+- `Esc` reset for active disturbances.
 
-The current animation is intentionally a rendering-engine test, not the final generative artwork.
+### Current artistic checkpoint
+
+Phase 4 is the first real playtest point.
+
+The application should now behave as a complete interactive experiment:
+
+1. A geometric system evolves continuously without input.
+2. Clicking introduces localized disturbances.
+3. Dragging deforms the field and creates flowing rotational effects.
+4. The mathematical geometry remains visible beneath the interaction.
+5. The light-mode presentation is suitable for large displays and projection.
+
+The current system is intentionally still an experiment. Phase 5 will add text as a second input instrument.
 
 ## Run locally
 
@@ -41,8 +60,23 @@ Then open:
 http://localhost:8000
 ```
 
+## Source structure
+
+```
+Proyecto1/
+├── index.html
+├── styles.css
+├── app.js
+├── src/
+│   ├── geometry.js
+│   └── input.js
+├── SPEC.md
+├── IMPLEMENTATION_PLAN.md
+└── README.md
+```
+
 ## Next phase
 
-**Phase 2 — Generative Geometry Engine**
+**Phase 5 — Text as Input**
 
-The next step is to replace the rendering diagnostic with the first real procedural geometry system.
+The next step is to make typed characters influence the geometry through deterministic seeds and parameter mappings.
