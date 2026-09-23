@@ -24,7 +24,22 @@ export const DEFAULT_PARAMETERS = {
   paletteShift: 0,
 };
 
-export function createGeometry(seed = DEFAULT_PARAMETERS.seed, parameters = DEFAULT_PARAMETERS) {
+function createNonlinearSystem(seed) {
+  const random = createRng(seed ^ 0xa341316c);
+
+  return {
+    iterations: 2 + Math.floor(random() * 2),
+    a: 1.05 + random() * 1.15,
+    b: 1.05 + random() * 1.15,
+    c: 1.05 + random() * 1.15,
+    d: 1.05 + random() * 1.15,
+  };
+}
+
+export function createGeometry(
+  seed = DEFAULT_PARAMETERS.seed,
+  parameters = DEFAULT_PARAMETERS,
+) {
   const random = createRng(seed);
   const curves = [];
   const curveCount = parameters.density;
@@ -82,8 +97,55 @@ export function createGeometry(seed = DEFAULT_PARAMETERS.seed, parameters = DEFA
   return {
     seed,
     parameters,
+    nonlinear: createNonlinearSystem(seed),
     curves,
   };
+}
+
+function nonlinearTransform(x, y, system, phase) {
+  let nextX = x;
+  let nextY = y;
+
+  for (let iteration = 0; iteration < system.iterations; iteration += 1) {
+    const transformedX =
+      Math.sin(system.a * nextY + phase) -
+      Math.cos(system.b * nextX - phase * 0.5);
+    const transformedY =
+      Math.sin(system.c * nextX - phase * 0.35) -
+      Math.cos(system.d * nextY + phase);
+
+    nextX = nextX * 0.64 + transformedX * 0.36;
+    nextY = nextY * 0.64 + transformedY * 0.36;
+  }
+
+  return {
+    x: Math.max(-1.4, Math.min(1.4, nextX)),
+    y: Math.max(-1.4, Math.min(1.4, nextY)),
+  };
+}
+
+function superformula(angle, symmetry, warp) {
+  const m = symmetry;
+  const a = 1;
+  const b = 1;
+  const n1 = 0.9 + warp * 1.6;
+  const n2 = 2 + warp * 5;
+  const n3 = 2 + warp * 5;
+
+  const termA = Math.pow(
+    Math.abs(Math.cos((m * angle) / 4) / a),
+    n2,
+  );
+  const termB = Math.pow(
+    Math.abs(Math.sin((m * angle) / 4) / b),
+    n3,
+  );
+  const denominator = Math.pow(
+    Math.max(0.0001, termA + termB),
+    1 / n1,
+  );
+
+  return Math.max(0.28, Math.min(1.55, 1 / denominator));
 }
 
 export function updateGeometry(
@@ -93,6 +155,7 @@ export function updateGeometry(
 ) {
   const maxRadius = minDimension * 0.49;
   const parameters = geometry.parameters;
+  const system = geometry.nonlinear;
 
   for (const curve of geometry.curves) {
     const animatedPhase =
@@ -102,15 +165,19 @@ export function updateGeometry(
 
     for (const point of curve.points) {
       const u = point.u;
-      const symmetryAngle =
-        (Math.floor(parameters.symmetry) * TAU * u) +
-        animatedPhase;
-
-      const angle =
-        symmetryAngle +
+      const baseAngle =
+        animatedPhase +
+        u * TAU * curve.turns +
         Math.sin(u * TAU * 2 + animatedPhase) *
           curve.twist *
           0.08;
+
+      const radialShape =
+        superformula(
+          baseAngle,
+          parameters.symmetry,
+          parameters.warp,
+        );
 
       const ringWave =
         Math.sin(
@@ -126,15 +193,44 @@ export function updateGeometry(
         ) *
         (0.006 + parameters.warp * 0.012);
 
-      const radius =
+      const baseRadius =
         maxRadius *
-          (curve.radiusBias + ringWave + secondaryWave) +
-        Math.sin(time * 0.28 * parameters.speed + curve.index) *
-          minDimension *
-          0.004;
+        (curve.radiusBias + ringWave + secondaryWave) *
+        radialShape;
 
-      let x = centerX + Math.cos(angle) * radius;
-      let y = centerY + Math.sin(angle) * radius;
+      const normalizedX =
+        Math.cos(baseAngle) *
+        (0.5 + curve.normalized * 0.5);
+      const normalizedY =
+        Math.sin(baseAngle) *
+        (0.5 + curve.normalized * 0.5);
+
+      const nonlinear = nonlinearTransform(
+        normalizedX,
+        normalizedY,
+        system,
+        animatedPhase,
+      );
+
+      const chaosBlend =
+        0.05 + parameters.warp * 0.72;
+
+      let x =
+        centerX +
+        (normalizedX * (1 - chaosBlend) +
+          nonlinear.x * chaosBlend) *
+          maxRadius *
+          (curve.radiusBias + ringWave + secondaryWave);
+
+      let y =
+        centerY +
+        (normalizedY * (1 - chaosBlend) +
+          nonlinear.y * chaosBlend) *
+          maxRadius *
+          (curve.radiusBias + ringWave + secondaryWave);
+
+      x += Math.cos(baseAngle) * (radialShape - 1) * maxRadius * 0.16;
+      y += Math.sin(baseAngle) * (radialShape - 1) * maxRadius * 0.16;
 
       for (const force of forces) {
         const dx = x - force.x;
@@ -204,8 +300,8 @@ export function updateGeometry(
 
       point.x = x;
       point.y = y;
-      point.radius = Math.max(0, radius);
-      point.angle = angle;
+      point.radius = Math.max(0, baseRadius);
+      point.angle = baseAngle;
     }
   }
 }
