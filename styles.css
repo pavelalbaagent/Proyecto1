@@ -27,6 +27,11 @@ body {
   color: var(--ink);
 }
 
+button,
+input {
+  font: inherit;
+}
+
 .app-shell {
   position: relative;
   width: 100%;
@@ -43,6 +48,11 @@ body {
   height: 100%;
   background: var(--paper);
   touch-action: none;
+  outline: none;
+}
+
+#canvas:focus-visible {
+  box-shadow: inset 0 0 0 2px rgba(29, 29, 27, 0.28);
 }
 
 .hud {
@@ -66,6 +76,7 @@ body {
 .hud__brand,
 .hud__status,
 .text-control,
+.reset-control,
 .hud__hint {
   display: inline-flex;
   align-items: center;
@@ -99,13 +110,19 @@ body {
   padding: 0;
   background: transparent;
   color: var(--ink);
-  font: inherit;
   letter-spacing: 0.11em;
   text-transform: uppercase;
 }
 
 .text-control input::placeholder {
   color: rgba(29, 29, 27, 0.44);
+}
+
+.hud__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
 }
 
 .hud__status {
@@ -117,6 +134,30 @@ body {
   height: 5px;
   border-radius: 50%;
   background: var(--ink);
+}
+
+.reset-control {
+  border: 1px solid var(--ink-soft);
+  color: var(--ink);
+  cursor: pointer;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  transition:
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.reset-control:hover {
+  background: rgba(255, 255, 255, 0.54);
+}
+
+.reset-control:active {
+  transform: scale(0.96);
+}
+
+.reset-control:focus-visible {
+  outline: 2px solid rgba(61, 90, 254, 0.4);
+  outline-offset: 2px;
 }
 
 .hud__hint {
@@ -147,6 +188,13 @@ body {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .reset-control,
+  .hud__hint {
+    transition: none;
+  }
+}
+
 @media (max-width: 640px) {
   .hud {
     padding:
@@ -158,11 +206,16 @@ body {
 
   .text-control {
     top: 14px;
-    width: min(48vw, 260px);
+    width: min(46vw, 250px);
   }
 
   .hud__status {
     display: none;
+  }
+
+  .reset-control {
+    min-width: 30px;
+    padding: 0 10px;
   }
 
   .hud__hint {
