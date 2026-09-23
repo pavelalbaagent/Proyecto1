@@ -1,4 +1,5 @@
 import { createGeometry, getCurveColor, updateGeometry } from "./src/geometry.js";
+import { createPointerInput } from "./src/input.js";
 
 const canvas = document.querySelector("#canvas");
 
@@ -31,10 +32,15 @@ const COLORS = {
   background: "#f4f1e8",
   grid: "rgba(29, 29, 27, 0.075)",
   gridStrong: "rgba(29, 29, 27, 0.14)",
+  force: "rgba(29, 29, 27, 0.18)",
 };
 
 const geometry = createGeometry(137);
-const forces = [];
+const pointerInput = createPointerInput(canvas, () => ({
+  width: state.width,
+  height: state.height,
+  minDimension: state.minDimension,
+}));
 
 function resizeCanvas() {
   const rect = canvas.getBoundingClientRect();
@@ -126,8 +132,37 @@ function drawGeometry() {
   ctx.restore();
 }
 
+function drawActiveForces() {
+  const forces = pointerInput.forces;
+
+  if (forces.length === 0) {
+    return;
+  }
+
+  ctx.save();
+  ctx.strokeStyle = COLORS.force;
+  ctx.lineWidth = 1;
+
+  for (const force of forces) {
+    const radius = force.radius * (0.42 + force.life * 0.58);
+
+    ctx.globalAlpha = Math.min(0.34, force.life * 0.4);
+    ctx.beginPath();
+    ctx.arc(force.x, force.y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.globalAlpha = Math.min(0.2, force.life * 0.24);
+    ctx.beginPath();
+    ctx.arc(force.x, force.y, radius * 0.28, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
 function update(deltaSeconds) {
   state.time += deltaSeconds;
+  pointerInput.update(deltaSeconds);
 
   updateGeometry(
     geometry,
@@ -139,7 +174,7 @@ function update(deltaSeconds) {
       minDimension: state.minDimension,
       time: state.time,
     },
-    forces,
+    pointerInput.forces,
   );
 }
 
@@ -147,6 +182,7 @@ function render() {
   clearCanvas();
   drawReferenceGrid();
   drawGeometry();
+  drawActiveForces();
 }
 
 function frame(now) {
