@@ -19,6 +19,7 @@
       <canvas
         id="canvas"
         aria-label="Generative geometry canvas"
+        tabindex="0"
       ></canvas>
 
       <div class="hud">
@@ -37,9 +38,19 @@
           />
         </label>
 
-        <div class="hud__status" aria-live="polite">
-          <span class="hud__status-dot"></span>
-          <span id="seed-readout">SEED 00000089</span>
+        <div class="hud__actions">
+          <div class="hud__status" aria-live="polite">
+            <span class="hud__status-dot"></span>
+            <span id="seed-readout">SEED 00000089</span>
+          </div>
+
+          <button
+            id="reset-button"
+            class="reset-control"
+            type="button"
+          >
+            RESET
+          </button>
         </div>
 
         <div class="hud__hint">
