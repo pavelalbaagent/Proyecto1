@@ -1,3 +1,5 @@
+import { createGeometry, getCurveColor, updateGeometry } from "./src/geometry.js";
+
 const canvas = document.querySelector("#canvas");
 
 if (!(canvas instanceof HTMLCanvasElement)) {
@@ -27,10 +29,12 @@ const state = {
 
 const COLORS = {
   background: "#f4f1e8",
-  ink: "#1d1d1b",
-  guide: "rgba(29, 29, 27, 0.12)",
-  guideStrong: "rgba(29, 29, 27, 0.20)",
+  grid: "rgba(29, 29, 27, 0.075)",
+  gridStrong: "rgba(29, 29, 27, 0.14)",
 };
+
+const geometry = createGeometry(137);
+const forces = [];
 
 function resizeCanvas() {
   const rect = canvas.getBoundingClientRect();
@@ -55,30 +59,21 @@ function clearCanvas() {
   ctx.fillRect(0, 0, state.width, state.height);
 }
 
-function update(deltaSeconds) {
-  state.time += deltaSeconds;
-}
-
-function drawGuides() {
-  const radius = state.minDimension * 0.23;
-  const pulse = 1 + Math.sin(state.time * 1.2) * 0.025;
-  const orbitAngle = state.time * 0.42;
-  const orbitRadius = radius * 0.62;
+function drawReferenceGrid() {
+  const radius = state.minDimension * 0.49;
 
   ctx.save();
   ctx.translate(state.centerX, state.centerY);
-
-  ctx.strokeStyle = COLORS.guide;
+  ctx.strokeStyle = COLORS.grid;
   ctx.lineWidth = 1;
 
-  ctx.beginPath();
-  ctx.arc(0, 0, radius * pulse, 0, Math.PI * 2);
-  ctx.stroke();
+  for (let ring = 1; ring <= 4; ring += 1) {
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * (ring / 4), 0, Math.PI * 2);
+    ctx.stroke();
+  }
 
-  ctx.beginPath();
-  ctx.arc(0, 0, radius * 0.62, 0, Math.PI * 2);
-  ctx.stroke();
-
+  ctx.strokeStyle = COLORS.gridStrong;
   ctx.beginPath();
   ctx.moveTo(-radius, 0);
   ctx.lineTo(radius, 0);
@@ -86,25 +81,72 @@ function drawGuides() {
   ctx.lineTo(0, radius);
   ctx.stroke();
 
-  ctx.strokeStyle = COLORS.guideStrong;
-  ctx.beginPath();
-  ctx.arc(0, 0, orbitRadius, orbitAngle - 0.42, orbitAngle + 0.42);
-  ctx.stroke();
+  ctx.restore();
+}
 
-  const dotX = Math.cos(orbitAngle) * orbitRadius;
-  const dotY = Math.sin(orbitAngle) * orbitRadius;
+function drawGeometry() {
+  ctx.save();
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.globalCompositeOperation = "source-over";
 
-  ctx.fillStyle = COLORS.ink;
-  ctx.beginPath();
-  ctx.arc(dotX, dotY, 2.75, 0, Math.PI * 2);
-  ctx.fill();
+  for (const curve of geometry.curves) {
+    const color = getCurveColor(curve.index, geometry.curves.length);
+
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = curve.index % 5 === 0 ? 0.62 : 0.42;
+    ctx.lineWidth = curve.weight;
+
+    for (let index = 0; index < curve.points.length; index += 1) {
+      const point = curve.points[index];
+
+      if (index === 0) {
+        ctx.moveTo(point.x, point.y);
+      } else {
+        ctx.lineTo(point.x, point.y);
+      }
+    }
+
+    ctx.stroke();
+
+    if (curve.index % 5 === 0) {
+      ctx.globalAlpha = 0.75;
+      ctx.fillStyle = color;
+
+      for (let index = 0; index < curve.points.length; index += 22) {
+        const point = curve.points[index];
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 1.65, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
 
   ctx.restore();
 }
 
+function update(deltaSeconds) {
+  state.time += deltaSeconds;
+
+  updateGeometry(
+    geometry,
+    {
+      width: state.width,
+      height: state.height,
+      centerX: state.centerX,
+      centerY: state.centerY,
+      minDimension: state.minDimension,
+      time: state.time,
+    },
+    forces,
+  );
+}
+
 function render() {
   clearCanvas();
-  drawGuides();
+  drawReferenceGrid();
+  drawGeometry();
 }
 
 function frame(now) {
