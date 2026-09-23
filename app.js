@@ -1,10 +1,22 @@
-import { createGeometry, getCurveColor, updateGeometry } from "./src/geometry.js";
+import {
+  DEFAULT_PARAMETERS,
+  createGeometry,
+  getCurveColor,
+  updateGeometry,
+} from "./src/geometry.js";
 import { createPointerInput } from "./src/input.js";
+import { createTextInput, textToParameters } from "./src/text.js";
 
 const canvas = document.querySelector("#canvas");
+const textField = document.querySelector("#text-input");
+const seedReadout = document.querySelector("#seed-readout");
 
 if (!(canvas instanceof HTMLCanvasElement)) {
   throw new Error("Canvas element not found.");
+}
+
+if (!(textField instanceof HTMLInputElement)) {
+  throw new Error("Text input element not found.");
 }
 
 const ctx = canvas.getContext("2d", {
@@ -26,6 +38,8 @@ const state = {
   centerX: 0,
   centerY: 0,
   minDimension: 0,
+  parameters: DEFAULT_PARAMETERS,
+  geometry: createGeometry(DEFAULT_PARAMETERS.seed, DEFAULT_PARAMETERS),
 };
 
 const COLORS = {
@@ -35,7 +49,6 @@ const COLORS = {
   force: "rgba(29, 29, 27, 0.18)",
 };
 
-const geometry = createGeometry(137);
 const pointerInput = createPointerInput(canvas, () => ({
   width: state.width,
   height: state.height,
@@ -58,6 +71,13 @@ function resizeCanvas() {
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.imageSmoothingEnabled = true;
+}
+
+function applyTextParameters(parameters) {
+  state.parameters = parameters;
+  state.geometry = createGeometry(parameters.seed, parameters);
+  seedReadout.textContent =
+    "SEED " + parameters.seed.toString(16).padStart(8, "0");
 }
 
 function clearCanvas() {
@@ -96,8 +116,12 @@ function drawGeometry() {
   ctx.lineCap = "round";
   ctx.globalCompositeOperation = "source-over";
 
-  for (const curve of geometry.curves) {
-    const color = getCurveColor(curve.index, geometry.curves.length);
+  for (const curve of state.geometry.curves) {
+    const color = getCurveColor(
+      curve.index,
+      state.geometry.curves.length,
+      state.parameters.paletteShift,
+    );
 
     ctx.beginPath();
     ctx.strokeStyle = color;
@@ -161,14 +185,14 @@ function drawActiveForces() {
 }
 
 function update(deltaSeconds) {
-  state.time += deltaSeconds;
+  state.time +=
+    deltaSeconds * state.parameters.speed;
   pointerInput.update(deltaSeconds);
 
   updateGeometry(
-    geometry,
+    state.geometry,
     {
       width: state.width,
-      height: state.height,
       centerX: state.centerX,
       centerY: state.centerY,
       minDimension: state.minDimension,
@@ -186,7 +210,11 @@ function render() {
 }
 
 function frame(now) {
-  const elapsedMs = Math.min(now - state.previousTime, 100);
+  const elapsedMs = Math.min(
+    now - state.previousTime,
+    100,
+  );
+
   state.previousTime = now;
   state.deltaTime = elapsedMs / 1000;
 
@@ -196,7 +224,21 @@ function frame(now) {
   window.requestAnimationFrame(frame);
 }
 
-window.addEventListener("resize", resizeCanvas, { passive: true });
+const textInput = createTextInput({
+  input: textField,
+  onChange: applyTextParameters,
+});
+
+applyTextParameters(textToParameters(textField.value));
+
+window.addEventListener("resize", resizeCanvas, {
+  passive: true,
+});
 
 resizeCanvas();
 window.requestAnimationFrame(frame);
+
+window.addEventListener("pagehide", () => {
+  textInput.dispose();
+  pointerInput.dispose();
+});
