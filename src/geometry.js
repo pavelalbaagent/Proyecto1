@@ -12,22 +12,45 @@ function createRng(seed = 1) {
   };
 }
 
-export function createGeometry(seed = 137) {
+export const DEFAULT_PARAMETERS = {
+  text: "",
+  seed: 137,
+  density: 30,
+  symmetry: 5,
+  twist: 1,
+  frequency: 2.4,
+  warp: 0.14,
+  speed: 1,
+  paletteShift: 0,
+};
+
+export function createGeometry(seed = DEFAULT_PARAMETERS.seed, parameters = DEFAULT_PARAMETERS) {
   const random = createRng(seed);
   const curves = [];
-  const curveCount = 30;
-  const pointsPerCurve = 190;
+  const curveCount = parameters.density;
+  const pointsPerCurve = 150;
 
   for (let curveIndex = 0; curveIndex < curveCount; curveIndex += 1) {
     const normalized = curveIndex / Math.max(1, curveCount - 1);
     const phase = random() * TAU;
-    const turns = 0.8 + random() * 1.65;
-    const frequency = 1.4 + random() * 3.4;
-    const amplitude = 0.012 + random() * 0.035;
-    const twist = -0.8 + random() * 1.6;
+    const turns =
+      0.6 +
+      random() * 1.2 +
+      parameters.symmetry * 0.055;
+    const frequency =
+      parameters.frequency * (0.72 + random() * 0.58);
+    const amplitude =
+      0.008 +
+      random() * 0.022 +
+      parameters.warp * 0.035;
+    const twist =
+      (-0.8 + random() * 1.6) * parameters.twist;
     const radiusBias = 0.08 + normalized * 0.84;
-    const phaseSpeed = (-0.12 + random() * 0.24) * (0.75 + normalized);
-    const weight = curveIndex % 7 === 0 ? 1.4 : 1;
+    const phaseSpeed =
+      (-0.10 + random() * 0.20) *
+      parameters.speed *
+      (0.75 + normalized);
+    const weight = curveIndex % 7 === 0 ? 1.45 : 1;
 
     const points = new Array(pointsPerCurve);
 
@@ -56,33 +79,59 @@ export function createGeometry(seed = 137) {
     });
   }
 
-  return { curves };
+  return {
+    seed,
+    parameters,
+    curves,
+  };
 }
 
-export function updateGeometry(geometry, { width, height, centerX, centerY, minDimension, time }, forces) {
+export function updateGeometry(
+  geometry,
+  { width, centerX, centerY, minDimension, time },
+  forces,
+) {
   const maxRadius = minDimension * 0.49;
+  const parameters = geometry.parameters;
 
   for (const curve of geometry.curves) {
-    const animatedPhase = curve.phase + time * curve.phaseSpeed;
+    const animatedPhase =
+      curve.phase +
+      time * curve.phaseSpeed +
+      Math.sin(time * 0.18 + curve.index) * parameters.warp * 0.16;
 
     for (const point of curve.points) {
       const u = point.u;
+      const symmetryAngle =
+        (Math.floor(parameters.symmetry) * TAU * u) +
+        animatedPhase;
+
       const angle =
-        animatedPhase +
-        u * TAU * curve.turns +
-        Math.sin(u * TAU * 2 + animatedPhase) * curve.twist * 0.08;
+        symmetryAngle +
+        Math.sin(u * TAU * 2 + animatedPhase) *
+          curve.twist *
+          0.08;
 
       const ringWave =
-        Math.sin(u * TAU * curve.frequency + animatedPhase * 0.7) *
+        Math.sin(
+          u * TAU * curve.frequency +
+            animatedPhase * 0.7,
+        ) *
         curve.amplitude;
 
       const secondaryWave =
-        Math.sin(u * TAU * (curve.frequency * 0.5 + 0.7) - animatedPhase * 1.3) *
-        0.009;
+        Math.sin(
+          u * TAU * (curve.frequency * 0.5 + 0.7) -
+            animatedPhase * 1.3,
+        ) *
+        (0.006 + parameters.warp * 0.012);
 
       const radius =
-        maxRadius * (curve.radiusBias + ringWave + secondaryWave) +
-        Math.sin(time * 0.28 + curve.index) * minDimension * 0.004;
+        maxRadius *
+          (curve.radiusBias + ringWave + secondaryWave) +
+        Math.sin(time * 0.28 * parameters.speed + curve.index) *
+          minDimension *
+          0.004;
 
       let x = centerX + Math.cos(angle) * radius;
       let y = centerY + Math.sin(angle) * radius;
@@ -92,9 +141,10 @@ export function updateGeometry(geometry, { width, height, centerX, centerY, minD
         const dy = y - force.y;
         const distanceSquared = dx * dx + dy * dy;
         const sigmaSquared = force.radius * force.radius;
-        const falloff = sigmaSquared > 0
-          ? Math.exp(-distanceSquared / (sigmaSquared * 1.65))
-          : 0;
+        const falloff =
+          sigmaSquared > 0
+            ? Math.exp(-distanceSquared / (sigmaSquared * 1.65))
+            : 0;
 
         if (falloff < 0.001) {
           continue;
@@ -117,18 +167,39 @@ export function updateGeometry(geometry, { width, height, centerX, centerY, minD
 
         const tangentialX = -dy;
         const tangentialY = dx;
-        const distance = Math.max(1, Math.sqrt(distanceSquared));
+        const distance = Math.max(
+          1,
+          Math.sqrt(distanceSquared),
+        );
         const nx = dx / distance;
         const ny = dy / distance;
 
-        x += nx * influence * force.radial + (tangentialX / distance) * influence * force.swirl;
-        y += ny * influence * force.radial + (tangentialY / distance) * influence * force.swirl;
+        x +=
+          nx * influence * force.radial +
+          (tangentialX / distance) *
+            influence *
+            force.swirl;
+        y +=
+          ny * influence * force.radial +
+          (tangentialY / distance) *
+            influence *
+            force.swirl;
       }
 
-      const edgePull = Math.max(0, Math.abs(x - centerX) / (width * 0.52) - 0.68);
+      const edgePull = Math.max(
+        0,
+        Math.abs(x - centerX) / (width * 0.52) - 0.68,
+      );
+
       if (edgePull > 0) {
-        x -= (x - centerX) * edgePull * 0.045;
-        y -= (y - centerY) * edgePull * 0.045;
+        x -=
+          (x - centerX) *
+          edgePull *
+          (0.045 + parameters.warp * 0.02);
+        y -=
+          (y - centerY) *
+          edgePull *
+          (0.045 + parameters.warp * 0.02);
       }
 
       point.x = x;
@@ -139,8 +210,7 @@ export function updateGeometry(geometry, { width, height, centerX, centerY, minD
   }
 }
 
-export function getCurveColor(index, total) {
-  const ratio = index / Math.max(1, total - 1);
+export function getCurveColor(index, total, paletteShift = 0) {
   const palette = [
     "#1d1d1b",
     "#3d5afe",
@@ -149,6 +219,12 @@ export function getCurveColor(index, total) {
     "#b57c1f",
   ];
 
-  const paletteIndex = Math.floor(ratio * palette.length) % palette.length;
+  const paletteIndex =
+    (Math.floor(
+      (index / Math.max(1, total - 1)) * palette.length,
+    ) +
+      paletteShift) %
+    palette.length;
+
   return palette[paletteIndex];
 }
