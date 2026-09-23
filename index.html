@@ -16,15 +16,35 @@
   </head>
   <body>
     <main class="app-shell" aria-label="Proyecto 1 generative canvas">
-      <canvas id="canvas" aria-label="Generative canvas"></canvas>
+      <canvas
+        id="canvas"
+        aria-label="Generative geometry canvas"
+      ></canvas>
 
-      <div class="hud" aria-hidden="true">
+      <div class="hud">
         <div class="hud__brand">PROYECTO 1</div>
-        <div class="hud__status">
+
+        <label class="text-control" for="text-input">
+          <span class="sr-only">Text seed</span>
+          <input
+            id="text-input"
+            type="text"
+            maxlength="80"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="TYPE SOMETHING"
+            aria-label="Type text to change the geometry"
+          />
+        </label>
+
+        <div class="hud__status" aria-live="polite">
           <span class="hud__status-dot"></span>
-          INTERACTIVE FIELD
+          <span id="seed-readout">SEED 00000089</span>
         </div>
-        <div class="hud__hint">CLICK / DRAG TO DISTURB · ESC TO RESET</div>
+
+        <div class="hud__hint">
+          TYPE · CLICK · DRAG · ESC TO RESET
+        </div>
       </div>
     </main>
 
